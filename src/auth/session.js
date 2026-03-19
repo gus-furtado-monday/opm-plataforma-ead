@@ -11,10 +11,6 @@ const SESSION_TTL = parseInt(process.env.SESSION_TTL) || 7200; // 2h em segundos
 /**
  * Valida o token de sessão do usuário.
  *
- * BUG #42: Quando o token expira mas a flag `active_session` ainda está
- * setada no Redis, a função retorna `true` indevidamente, permitindo
- * acesso não autorizado ao módulo de provas.
- *
  * @param {string} token - Token de sessão do usuário
  * @returns {boolean} true se sessão válida, false caso contrário
  */
@@ -25,13 +21,18 @@ async function validate_session_token(token) {
     return false;
   }
 
-  // BUG: verifica apenas a flag active_session sem checar o timestamp de expiração.
-  // Tokens expirados com active_session=true passam pela validação indevidamente.
-  if (session.active_session === 'true') {
-    return true;
+  if (session.active_session !== 'true') {
+    return false;
   }
 
-  return false;
+  const now = Math.floor(Date.now() / 1000);
+  const expiresAt = parseInt(session.expires_at);
+
+  if (now > expiresAt) {
+    return false;
+  }
+
+  return true;
 }
 
 /**
